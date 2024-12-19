@@ -163,8 +163,12 @@ func (c *UserController) Reconcile(ctx context.Context, req reconcile.Request) (
 	// 	log.Error(err, "Failed to reconcile users")
 	// 	return reconcile.Result{}, err
 	// }
+	result := reconcile.Result{RequeueAfter: time.Minute * 2}
+	log.Info("Scheduling next reconciliation",
+		"requeue_after_seconds", result.RequeueAfter.Seconds(),
+		"requeue_after_minutes", result.RequeueAfter.Minutes())
 
-	return reconcile.Result{RequeueAfter: time.Minute * 5}, nil
+	return result, nil
 }
 
 func (c *UserController) loadState() (*UserState, error) {
