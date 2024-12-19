@@ -308,14 +308,16 @@ func cloneOrPullRepo(url, path string) error {
 	log.Info("Attempting git operation", "url", url, "path", path)
 
 	// Clone if doesn't exist
-	log.Info("Directory doesn't exist, attempting to clone")
-	_, err := git.PlainClone(path, false, &git.CloneOptions{
-		URL:             url,
-		InsecureSkipTLS: false,
-		Progress:        os.Stdout,
-	})
-	if err != nil {
-		return fmt.Errorf("failed to clone: %w", err)
+	if stat, err := os.Stat(path); err == nil && stat.Size() > 0 {
+		log.Info("Directory doesn't exist, attempting to clone")
+		_, err := git.PlainClone(path, false, &git.CloneOptions{
+			URL:             url,
+			InsecureSkipTLS: false,
+			Progress:        os.Stdout,
+		})
+		if err != nil {
+			return fmt.Errorf("failed to clone: %w", err)
+		}
 	}
 
 	// Pull if exists
