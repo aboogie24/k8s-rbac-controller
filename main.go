@@ -111,7 +111,21 @@ func main() {
 	}
 
 	// Start periodic Git pull
-	go controller.startGitPuller(context.Background())
+	errChan := make(chan error, 1)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	go func() {
+		errChan <- controller.startGitPuller(ctx)
+	}()
+
+	go func() {
+		for err := range errChan {
+			if err != nil {
+				log.Error(err, "Git puller error")
+			}
+		}
+	}()
 
 	// Start manager
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
@@ -267,15 +281,47 @@ func (c *UserController) generateUserCert(user User) error {
 	return nil
 }
 
-func (c *UserController) startGitPuller(ctx context.Context) {
+func cloneOrPullRepo(url, path string) error {
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		// Clone if doesn't exist
+		_, err := git.PlainClone(path, false, &git.CloneOptions{
+			URL: url,
+		})
+		return err
+	}
+
+	// Pull if exists
+	repo, err := git.PlainOpen(path)
+	if err != nil {
+		return fmt.Errorf("failed to open repo: %w", err)
+	}
+
+	w, err := repo.Worktree()
+	if err != nil {
+		return fmt.Errorf("failed to get worktree: %w", err)
+	}
+
+	err = w.Pull(&git.PullOptions{})
+	if err != nil && err != git.NoErrAlreadyUpToDate {
+		return fmt.Errorf("failed to pull: %w", err)
+	}
+
+	return nil
+}
+
+func (c *UserController) startGitPuller(ctx context.Context) error {
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
 	log.Log.Info("Pulling from git")
 	for {
 		select {
 		case <-ctx.Done():
-			return
+			return nil
 		case <-ticker.C:
+			if err := cloneOrPullRepo(os.Getenv("GIT_REPO_URL"), c.repoPath); err != nil {
+				log.Log.Error(err, "Failed to pull repository")
+				return err
+			}
 			repo, err := git.PlainOpen(c.repoPath)
 			if err != nil {
 				log.Log.Error(err, "PlainOpen not working")
