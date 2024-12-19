@@ -45,6 +45,7 @@ type User struct {
 type UserController struct {
 	client.Client
 	Scheme       *runtime.Scheme
+	repoURL      string
 	repoPath     string
 	certDir      string
 	lastCommit   string
@@ -102,6 +103,7 @@ func main() {
 		Scheme:   mgr.GetScheme(),
 		repoPath: repoPath,
 		certDir:  certDir,
+		repoURL:  repoURL,
 	}
 
 	if err := ctrl.NewControllerManagedBy(mgr).
@@ -337,7 +339,8 @@ func (c *UserController) startGitPuller(ctx context.Context) error {
 		case <-ctx.Done():
 			return nil
 		case <-ticker.C:
-			if err := cloneOrPullRepo(os.Getenv("GIT_REPO_URL"), c.repoPath); err != nil {
+			log.Info(c.repoURL)
+			if err := cloneOrPullRepo(c.repoURL, c.repoPath); err != nil {
 				log.Error(err, "Failed to pull repository")
 				return err
 			}
