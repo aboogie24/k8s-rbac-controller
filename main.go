@@ -303,14 +303,14 @@ func (c *UserController) generateUserCert(user User) error {
 	return nil
 }
 
-func cloneOrPullRepo(url, path string) error {
+func cloneOrPullRepo(url, path string) (*git.Repository, error) {
 	log := ctrl.Log.WithName("git")
 	log.Info("Attempting git operation", "url", url, "path", path)
 
 	currentDir, err := os.Getwd()
 	if err != nil {
 		log.Error(err, "Failed to get current directory")
-		return err
+		return nil, err
 	}
 
 	log.Info(currentDir)
@@ -319,28 +319,28 @@ func cloneOrPullRepo(url, path string) error {
 		log.Error(err, "Failed to get current directory")
 	}
 
-	// Clone if doesn't exist
+	// Check if path exist and is not empty
 	if dir, err := os.Open(path); err == nil {
 		defer dir.Close()
 		if _, err := dir.Readdir(1); err == nil {
 			log.Info("Repository exists, attempting to pull")
 			repo, err := git.PlainOpen(path)
 			if err != nil {
-				return fmt.Errorf("failed to open repo: %w", err)
+				return nil, fmt.Errorf("failed to open repo: %w", err)
 			}
 			log.Info("Repository exists, attempting to pull")
 
 			w, err := repo.Worktree()
 			if err != nil {
-				return fmt.Errorf("failed to get worktree: %w", err)
+				return nil, fmt.Errorf("failed to get worktree: %w", err)
 			}
 
 			err = w.Pull(&git.PullOptions{})
 			if err != nil && err != git.NoErrAlreadyUpToDate {
-				return fmt.Errorf("failed to pull: %w", err)
+				return nil, fmt.Errorf("failed to pull: %w", err)
 			}
+			return repo, nil
 		}
-		return nil
 	}
 
 	log.Info("Directory doesn't exist, attempting to clone")
@@ -350,10 +350,10 @@ func cloneOrPullRepo(url, path string) error {
 		Progress:        os.Stdout,
 	})
 	if err != nil {
-		return fmt.Errorf("failed to clone: %w", err)
+		return nil, fmt.Errorf("failed to clone: %w", err)
 	}
 
-	return nil
+	return nil, nil
 }
 
 func (c *UserController) isGitPullerHealthy() bool {
@@ -371,7 +371,8 @@ func (c *UserController) startGitPuller(ctx context.Context) error {
 			return nil
 		case <-ticker.C:
 			log.Info(c.repoURL)
-			if err := cloneOrPullRepo(c.repoURL, c.repoPath); err != nil {
+			repo, err := cloneOrPullRepo(c.repoURL, c.repoPath)
+			if err != nil {
 				log.Error(err, "Failed to pull repository")
 				return err
 			}
@@ -379,27 +380,11 @@ func (c *UserController) startGitPuller(ctx context.Context) error {
 			c.lastPullTime = time.Now()
 			log.Info("Successfully pulled repository", "lastPull", c.lastPullTime)
 
-			repo, err := git.PlainOpen(c.repoPath)
-			if err != nil {
-				log.Error(err, "PlainOpen not working")
-				continue
-			}
-
-			worktree, err := repo.Worktree()
-			if err != nil {
-				continue
-			}
-
-			err = worktree.Pull(&git.PullOptions{})
-			if err != nil && err != git.NoErrAlreadyUpToDate {
-				continue
-			}
-
 			head, err := repo.Head()
 			if err != nil {
-				continue
+				log.Error(err, "Failed to get head")
+				return err
 			}
-
 			newCommit := head.Hash().String()
 			if newCommit != c.lastCommit {
 				log.Info("New commit")
