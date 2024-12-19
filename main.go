@@ -44,10 +44,11 @@ type User struct {
 // UserController reconciles user states
 type UserController struct {
 	client.Client
-	Scheme     *runtime.Scheme
-	repoPath   string
-	certDir    string
-	lastCommit string
+	Scheme       *runtime.Scheme
+	repoPath     string
+	certDir      string
+	lastCommit   string
+	lastPullTime time.Time
 }
 
 func main() {
@@ -111,15 +112,21 @@ func main() {
 	}
 
 	// Start periodic Git pull
-	errChan := make(chan error, 1)
+	errChan := make(chan error)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	go func() {
-		errChan <- controller.startGitPuller(ctx)
+		log.Info("Starting Git Puller")
+
+		if err := controller.startGitPuller(ctx); err != nil {
+			errChan <- err
+		}
+
 	}()
 
 	go func() {
+		log.Info("Starting Git Puller Monitor")
 		for err := range errChan {
 			if err != nil {
 				log.Error(err, "Git puller error")
@@ -309,22 +316,31 @@ func cloneOrPullRepo(url, path string) error {
 	return nil
 }
 
+func (c *UserController) isGitPullerHealthy() bool {
+	return c.lastPullTime.Add(time.Minute).After(time.Now())
+}
+
 func (c *UserController) startGitPuller(ctx context.Context) error {
+	log := ctrl.Log.WithName("gitPUller")
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
-	log.Log.Info("Pulling from git")
+	log.Info("Pulling from git")
 	for {
 		select {
 		case <-ctx.Done():
 			return nil
 		case <-ticker.C:
 			if err := cloneOrPullRepo(os.Getenv("GIT_REPO_URL"), c.repoPath); err != nil {
-				log.Log.Error(err, "Failed to pull repository")
+				log.Error(err, "Failed to pull repository")
 				return err
 			}
+
+			c.lastPullTime = time.Now()
+			log.Info("Successfully pulled repository", "lastPull", c.lastPullTime)
+
 			repo, err := git.PlainOpen(c.repoPath)
 			if err != nil {
-				log.Log.Error(err, "PlainOpen not working")
+				log.Error(err, "PlainOpen not working")
 				continue
 			}
 
@@ -345,6 +361,7 @@ func (c *UserController) startGitPuller(ctx context.Context) error {
 
 			newCommit := head.Hash().String()
 			if newCommit != c.lastCommit {
+				log.Info("New commit")
 				c.lastCommit = newCommit
 				// Trigger reconciliation by updating a ConfigMap
 				cm := &corev1.ConfigMap{}
