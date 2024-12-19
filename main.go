@@ -157,23 +157,23 @@ func (c *UserController) Reconcile(ctx context.Context, req reconcile.Request) (
 	log := log.FromContext(ctx)
 
 	// Load state from Git
-	_, err := c.loadState()
+	state, err := c.loadState()
 	if err != nil {
 		log.Error(err, "Failed to load state")
 		return reconcile.Result{RequeueAfter: time.Minute * 2}, err
 	}
 
 	// Reconcile roles
-	// if err := c.reconcileRoles(ctx, state.Roles); err != nil {
-	// 	log.Error(err, "Failed to reconcile roles")
-	// 	return reconcile.Result{}, err
-	// }
+	if err := c.reconcileRoles(ctx, state.Roles); err != nil {
+		log.Error(err, "Failed to reconcile roles")
+		return reconcile.Result{}, err
+	}
 
 	// // Reconcile users
-	// if err := c.reconcileUsers(ctx, state.Users); err != nil {
-	// 	log.Error(err, "Failed to reconcile users")
-	// 	return reconcile.Result{}, err
-	// }
+	if err := c.reconcileUsers(ctx, state.Users); err != nil {
+		log.Error(err, "Failed to reconcile users")
+		return reconcile.Result{}, err
+	}
 	result := reconcile.Result{RequeueAfter: time.Minute * 2}
 	log.Info("Scheduling next reconciliation",
 		"requeue_after_seconds", result.RequeueAfter.Seconds(),
