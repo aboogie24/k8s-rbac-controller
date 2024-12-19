@@ -59,13 +59,13 @@ func main() {
 	logger := zap.New(zap.UseFlagOptions(&opts))
 	ctrl.SetLogger(logger)
 
+	log := ctrl.Log.WithName("Main")
 	// Get environment Vars
 	repoURL := os.Getenv("GIT_REPO_URL")
 	repoPath := os.Getenv("GIT_REPO_PATH")
 	certDir := os.Getenv("CERT_DIR")
 
-	fmt.Printf("RepoPath: %v", repoPath)
-	fmt.Printf("RepoURL: %v", repoURL)
+	log.Info("RepoURL: %v  ...  RepoPath: %v", repoURL, repoPath)
 
 	scheme := runtime.NewScheme()
 	_ = corev1.AddToScheme(scheme) // Register ConfigMap and other core types
