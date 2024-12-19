@@ -336,6 +336,7 @@ func cloneOrPullRepo(url, path string) error {
 				return fmt.Errorf("failed to pull: %w", err)
 			}
 		}
+		return nil
 	}
 
 	log.Info("Directory doesn't exist, attempting to clone")
