@@ -11,10 +11,9 @@ jobs:
       - name: Check out repository code
         uses: actions/checkout@v4
 
-      - 
-        name: Login to harbor
-        uses: docker/login-action@v3 
+      - name: Login to harbor
+        uses: docker/login-action@v2 
         with: 
-          # registry: harbor.alfredbrowniii.io 
+          registry: harbor.alfredbrowniii.io 
           username: ${{ vars.DOCKER_USERNAME }}
           password: ${{ secrets.HABOR_PASSWORD }}
