@@ -25,6 +25,7 @@ jobs:
       - name: Build and Push
         uses: docker/build-push-action@v6  
         with: 
+          context: .
           push: true
           tags: harbor.alfredbrowniii.io:443/docker/rbac-controller:latest
 
