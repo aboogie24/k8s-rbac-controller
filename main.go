@@ -11,6 +11,7 @@ import (
 	"gopkg.in/yaml.v2"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -158,7 +159,7 @@ func (c *UserController) Reconcile(ctx context.Context, req reconcile.Request) (
 
 	// Load state from Git
 	state, err := c.loadState()
-	if err != nil {
+	if err != nil && state != nil {
 		log.Error(err, "Failed to load state")
 		return reconcile.Result{RequeueAfter: time.Minute * 2}, err
 	}
@@ -215,20 +216,30 @@ func (c *UserController) loadState() (*UserState, error) {
 }
 
 func (c *UserController) reconcileRoles(ctx context.Context, roles map[string]Role) error {
-	for roleName, roleSpec := range roles {
-		role := &rbacv1.ClusterRole{}
-		role.Name = roleName
-		role.Rules = roleSpec.Rules
 
-		if err := c.Client.Create(ctx, role); err != nil {
-			if client.IgnoreAlreadyExists(err) != nil {
+	for roleName, roleSpec := range roles {
+		role := &rbacv1.ClusterRole{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: roleName,
+			},
+			Rules: roleSpec.Rules,
+		}
+
+		// Try to create first
+		err := c.Client.Create(ctx, role)
+		if err != nil {
+			if !errors.IsAlreadyExists(err) {
+				// If error is NOT AlreadyExists, return the error
 				return fmt.Errorf("failed to create role %s: %w", roleName, err)
 			}
+
+			// If role exists, try to update it
 			if err := c.Client.Update(ctx, role); err != nil {
 				return fmt.Errorf("failed to update role %s: %w", roleName, err)
 			}
 		}
 	}
+
 	return nil
 }
 
@@ -307,13 +318,11 @@ func cloneOrPullRepo(url, path string) (*git.Repository, error) {
 	log := ctrl.Log.WithName("git")
 	log.Info("Attempting git operation", "url", url, "path", path)
 
-	currentDir, err := os.Getwd()
+	_, err := os.Getwd()
 	if err != nil {
 		log.Error(err, "Failed to get current directory")
 		return nil, err
 	}
-
-	log.Info(currentDir)
 
 	if err := os.Chdir(path); err != nil {
 		log.Error(err, "Failed to get current directory")
@@ -328,7 +337,6 @@ func cloneOrPullRepo(url, path string) (*git.Repository, error) {
 			if err != nil {
 				return nil, fmt.Errorf("failed to open repo: %w", err)
 			}
-			log.Info("Repository exists, attempting to pull")
 
 			w, err := repo.Worktree()
 			if err != nil {
