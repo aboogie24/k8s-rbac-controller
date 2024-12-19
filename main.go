@@ -11,6 +11,7 @@ import (
 	"gopkg.in/yaml.v2"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -107,7 +108,15 @@ func main() {
 	}
 
 	if err := ctrl.NewControllerManagedBy(mgr).
-		For(&corev1.ConfigMap{}). // We'll use a ConfigMap as our trigger
+		For(&corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "user-controller-trigger",
+				Namespace: "default",
+			},
+			Immutable:  new(bool),
+			Data:       map[string]string{},
+			BinaryData: map[string][]byte{},
+		}). // We'll use a ConfigMap as our trigger
 		Complete(controller); err != nil {
 		fmt.Printf("Unable to create controller: %v\n", err)
 		os.Exit(1)
