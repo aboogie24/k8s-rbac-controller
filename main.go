@@ -55,6 +55,11 @@ func main() {
 	repoPath := os.Getenv("GIT_REPO_PATH")
 	certDir := os.Getenv("CERT_DIR")
 
+	scheme := runtime.NewScheme()
+	_ = corev1.AddToScheme(scheme) // Register ConfigMap and other core types
+	_ = rbacv1.AddToScheme(scheme) // Register RBAC types
+	//_ = certificatesv1.AddToScheme(scheme) // Register Certificate type
+
 	// Set up controller manager
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme: runtime.NewScheme(),
