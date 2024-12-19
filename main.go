@@ -15,6 +15,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
@@ -50,6 +51,14 @@ type UserController struct {
 }
 
 func main() {
+	// Set up logging
+	opts := zap.Options{
+		Development: true,
+	}
+
+	logger := zap.New(zap.UseFlagOptions(&opts))
+	ctrl.SetLogger(logger)
+
 	// Get environment Vars
 	repoURL := os.Getenv("GIT_REPO_URL")
 	repoPath := os.Getenv("GIT_REPO_PATH")
