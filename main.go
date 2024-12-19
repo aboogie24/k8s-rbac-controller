@@ -78,15 +78,18 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Clone repository if it doesn't exist
+	// Clone repository if it doesn't
+	fmt.Printf("RepoPath: %v", repoPath)
+	fmt.Printf("RepoURL: %v", repoURL)
 	if _, err := os.Stat(repoPath); os.IsNotExist(err) {
-		_, err = git.PlainClone(repoPath, false, &git.CloneOptions{
+		g, err := git.PlainClone(repoPath, false, &git.CloneOptions{
 			URL: repoURL,
 		})
 		if err != nil {
 			fmt.Printf("Failed to clone repository: %v\n", err)
 			os.Exit(1)
 		}
+		fmt.Printf("%v", g)
 	}
 
 	// Create and register controller
@@ -119,23 +122,23 @@ func (c *UserController) Reconcile(ctx context.Context, req reconcile.Request) (
 	log := log.FromContext(ctx)
 
 	// Load state from Git
-	state, err := c.loadState()
+	_, err := c.loadState()
 	if err != nil {
 		log.Error(err, "Failed to load state")
-		return reconcile.Result{}, err
+		return reconcile.Result{RequeueAfter: time.Minute}, err
 	}
 
 	// Reconcile roles
-	if err := c.reconcileRoles(ctx, state.Roles); err != nil {
-		log.Error(err, "Failed to reconcile roles")
-		return reconcile.Result{}, err
-	}
+	// if err := c.reconcileRoles(ctx, state.Roles); err != nil {
+	// 	log.Error(err, "Failed to reconcile roles")
+	// 	return reconcile.Result{}, err
+	// }
 
-	// Reconcile users
-	if err := c.reconcileUsers(ctx, state.Users); err != nil {
-		log.Error(err, "Failed to reconcile users")
-		return reconcile.Result{}, err
-	}
+	// // Reconcile users
+	// if err := c.reconcileUsers(ctx, state.Users); err != nil {
+	// 	log.Error(err, "Failed to reconcile users")
+	// 	return reconcile.Result{}, err
+	// }
 
 	return reconcile.Result{RequeueAfter: time.Minute}, nil
 }
