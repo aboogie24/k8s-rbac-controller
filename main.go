@@ -158,7 +158,7 @@ func (c *UserController) Reconcile(ctx context.Context, req reconcile.Request) (
 	log := log.FromContext(ctx)
 
 	// Skip if this isn't our trigger ConfigMap
-	if req.Name != "user-controller-trigger" || req.Namespace != "user-controller" {
+	if req.Name != "user-controller-trigger" || req.Namespace != "default" {
 		log.Info("Skipping reconciliation for non-trigger ConfigMap",
 			"configmap", req.Name,
 			"namespace", req.Namespace)
