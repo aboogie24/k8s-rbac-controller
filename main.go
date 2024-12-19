@@ -315,6 +315,10 @@ func cloneOrPullRepo(url, path string) error {
 
 	log.Info(currentDir)
 
+	if err := os.Chdir(path); err != nil {
+		log.Error(err, "Failed to get current directory")
+	}
+
 	// Clone if doesn't exist
 	if dir, err := os.Open(path); err == nil {
 		defer dir.Close()
