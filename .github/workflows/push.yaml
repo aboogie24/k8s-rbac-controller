@@ -20,3 +20,12 @@ jobs:
           registry: harbor.alfredbrowniii.io 
           username: robot$github
           password: byvHUpRytc6jWZ2qswqfoFTqUnvNvshJ
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Build and Push
+        uses: docker/build-push-action@v6  
+        with: 
+          push: true
+          tags: library/rbac-controller:latest
+
+
