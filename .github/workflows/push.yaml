@@ -8,6 +8,7 @@ jobs:
   Push:
     runs-on: ubuntu-latest 
     steps: 
+    env: Dev
       - name: Check out repository code
         uses: actions/checkout@v4
 
@@ -15,5 +16,5 @@ jobs:
         uses: docker/login-action@v3 
         with: 
           registry: harbor.alfredbrowniii.io 
-          username: robot@github
-          password: byvHUpRytc6jWZ2qswqfoFTqUnvNvshJ
+          username: ${{ vars.DOCKER_USERNAME }}
+          password: ${{ secrets.HABOR_PASSWORD }}
