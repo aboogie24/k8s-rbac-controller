@@ -149,7 +149,7 @@ func (c *UserController) Reconcile(ctx context.Context, req reconcile.Request) (
 	_, err := c.loadState()
 	if err != nil {
 		log.Error(err, "Failed to load state")
-		return reconcile.Result{RequeueAfter: time.Minute}, err
+		return reconcile.Result{RequeueAfter: time.Minute * 2}, err
 	}
 
 	// Reconcile roles
@@ -164,7 +164,7 @@ func (c *UserController) Reconcile(ctx context.Context, req reconcile.Request) (
 	// 	return reconcile.Result{}, err
 	// }
 
-	return reconcile.Result{RequeueAfter: time.Minute}, nil
+	return reconcile.Result{RequeueAfter: time.Minute * 5}, nil
 }
 
 func (c *UserController) loadState() (*UserState, error) {
