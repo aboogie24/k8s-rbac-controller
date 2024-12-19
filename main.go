@@ -252,7 +252,7 @@ func (c *UserController) generateUserCert(user User) error {
 func (c *UserController) startGitPuller(ctx context.Context) {
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
-
+	log.Log.Info("Pulling from git")
 	for {
 		select {
 		case <-ctx.Done():
@@ -260,6 +260,7 @@ func (c *UserController) startGitPuller(ctx context.Context) {
 		case <-ticker.C:
 			repo, err := git.PlainOpen(c.repoPath)
 			if err != nil {
+				log.Log.Error(err, "PlainOpen not working")
 				continue
 			}
 
