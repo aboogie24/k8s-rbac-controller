@@ -122,19 +122,19 @@ func (c *UserController) Reconcile(ctx context.Context, req reconcile.Request) (
 	state, err := c.loadState()
 	if err != nil {
 		log.Error(err, "Failed to load state")
-		return reconcile.Result{RequeueAfter: time.Minute}, err
+		return reconcile.Result{}, err
 	}
 
 	// Reconcile roles
 	if err := c.reconcileRoles(ctx, state.Roles); err != nil {
 		log.Error(err, "Failed to reconcile roles")
-		return reconcile.Result{RequeueAfter: time.Minute}, err
+		return reconcile.Result{}, err
 	}
 
 	// Reconcile users
 	if err := c.reconcileUsers(ctx, state.Users); err != nil {
 		log.Error(err, "Failed to reconcile users")
-		return reconcile.Result{RequeueAfter: time.Minute}, err
+		return reconcile.Result{}, err
 	}
 
 	return reconcile.Result{RequeueAfter: time.Minute}, nil
