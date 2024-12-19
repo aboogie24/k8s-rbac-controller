@@ -147,15 +147,33 @@ func (c *UserController) Reconcile(ctx context.Context, req reconcile.Request) (
 }
 
 func (c *UserController) loadState() (*UserState, error) {
+	statePath := filepath.Join(c.repoPath, "users-state.yaml")
+	log := ctrl.Log.WithName("loadState")
+
+	log.Info("Attempting to load state file", "path", statePath)
+
+	if _, err := os.Stat(statePath); err != nil {
+		if os.IsNotExist(err) {
+			return nil, fmt.Errorf("state file does not exist at %s", statePath)
+		}
+		return nil, fmt.Errorf("error checking state file at %s: %w", statePath, err)
+	}
+
 	data, err := os.ReadFile(fmt.Sprintf("%s/users-state.yaml", c.repoPath))
 	if err != nil {
-		return nil, fmt.Errorf("failed to read state file: %w", err)
+		return nil, fmt.Errorf("failed to read state file: %s %w", statePath, err)
 	}
+
+	log.Info("Successfully read state file", "size", len(data))
 
 	var state UserState
 	if err := yaml.Unmarshal(data, &state); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal state: %w", err)
 	}
+	log.Info("Successfully loaded state",
+		"roles", len(state.Roles),
+		"namespaces", len(state.Namespaces),
+		"users", len(state.Users))
 
 	return &state, nil
 }
