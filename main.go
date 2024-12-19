@@ -157,6 +157,24 @@ func main() {
 func (c *UserController) Reconcile(ctx context.Context, req reconcile.Request) (reconcile.Result, error) {
 	log := log.FromContext(ctx)
 
+	// Skip if this isn't our trigger ConfigMap
+	if req.Name != "user-controller-trigger" || req.Namespace != "user-controller" {
+		log.Info("Skipping reconciliation for non-trigger ConfigMap",
+			"configmap", req.Name,
+			"namespace", req.Namespace)
+		return reconcile.Result{}, nil
+	}
+
+	// Get the ConfigMap that triggered reconciliation
+	configMap := &corev1.ConfigMap{}
+	if err := c.Get(ctx, req.NamespacedName, configMap); err != nil {
+		if errors.IsNotFound(err) {
+			// ConfigMap was deleted
+			return reconcile.Result{}, nil
+		}
+		return reconcile.Result{}, err
+	}
+
 	// Load state from Git
 	state, err := c.loadState()
 	if err != nil && state != nil {
