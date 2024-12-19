@@ -308,34 +308,36 @@ func cloneOrPullRepo(url, path string) error {
 	log.Info("Attempting git operation", "url", url, "path", path)
 
 	// Clone if doesn't exist
-	if stat, err := os.Stat(path); err == nil && stat.Size() > 0 {
-		log.Info("Directory doesn't exist, attempting to clone")
-		_, err := git.PlainClone(path, false, &git.CloneOptions{
-			URL:             url,
-			InsecureSkipTLS: false,
-			Progress:        os.Stdout,
-		})
-		if err != nil {
-			return fmt.Errorf("failed to clone: %w", err)
+	if dir, err := os.Open(path); err == nil {
+		defer dir.Close()
+		if _, err := dir.Readdir(1); err == nil {
+			log.Info("Repository exists, attempting to pull")
+			repo, err := git.PlainOpen(path)
+			if err != nil {
+				return fmt.Errorf("failed to open repo: %w", err)
+			}
+			log.Info("Repository exists, attempting to pull")
+
+			w, err := repo.Worktree()
+			if err != nil {
+				return fmt.Errorf("failed to get worktree: %w", err)
+			}
+
+			err = w.Pull(&git.PullOptions{})
+			if err != nil && err != git.NoErrAlreadyUpToDate {
+				return fmt.Errorf("failed to pull: %w", err)
+			}
 		}
 	}
 
-	// Pull if exists
-
-	log.Info("Repository exists, attempting to pull")
-	repo, err := git.PlainOpen(path)
+	log.Info("Directory doesn't exist, attempting to clone")
+	_, err := git.PlainClone(path, false, &git.CloneOptions{
+		URL:             url,
+		InsecureSkipTLS: false,
+		Progress:        os.Stdout,
+	})
 	if err != nil {
-		return fmt.Errorf("failed to open repo: %w", err)
-	}
-
-	w, err := repo.Worktree()
-	if err != nil {
-		return fmt.Errorf("failed to get worktree: %w", err)
-	}
-
-	err = w.Pull(&git.PullOptions{})
-	if err != nil && err != git.NoErrAlreadyUpToDate {
-		return fmt.Errorf("failed to pull: %w", err)
+		return fmt.Errorf("failed to clone: %w", err)
 	}
 
 	return nil
