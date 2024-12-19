@@ -7,8 +7,8 @@ on:
 jobs: 
   Push:
     runs-on: ubuntu-latest 
-    steps: 
     env: Dev
+    steps: 
       - name: Check out repository code
         uses: actions/checkout@v4
 
