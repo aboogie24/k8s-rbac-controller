@@ -8,10 +8,12 @@ jobs:
   Push:
     runs-on: ubuntu-latest 
     steps: 
+      - name: Check out repository code
+        uses: actions/checkout@v4
+
       - name: Login to harbor
         uses: docker/login-action@v3 
         with: 
           registry: harbor.alfredbrowniii.io 
-          username: ${{ vars.HARBOR_USERNAME }}
-          password: ${{ secrets.HABOR_PASSWORD }}
-          
+          username: ${{ Dev.HARBOR_USERNAME }}
+          password: ${{ Dev.HABOR_PASSWORD }}
