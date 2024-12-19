@@ -64,6 +64,9 @@ func main() {
 	repoPath := os.Getenv("GIT_REPO_PATH")
 	certDir := os.Getenv("CERT_DIR")
 
+	fmt.Printf("RepoPath: %v", repoPath)
+	fmt.Printf("RepoURL: %v", repoURL)
+
 	scheme := runtime.NewScheme()
 	_ = corev1.AddToScheme(scheme) // Register ConfigMap and other core types
 	_ = rbacv1.AddToScheme(scheme) // Register RBAC types
