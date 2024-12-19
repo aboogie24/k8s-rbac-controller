@@ -293,11 +293,14 @@ func (c *UserController) generateUserCert(user User) error {
 }
 
 func cloneOrPullRepo(url, path string) error {
+	log := ctrl.Log.WithName("PULLLLLLLLLLLLL")
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		// Clone if doesn't exist
+		log.Info(err.Error())
 		_, err := git.PlainClone(path, false, &git.CloneOptions{
 			URL: url,
 		})
+		log.Info(err.Error())
 		return err
 	}
 
