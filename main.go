@@ -295,18 +295,26 @@ func (c *UserController) generateUserCert(user User) error {
 }
 
 func cloneOrPullRepo(url, path string) error {
-	log := ctrl.Log.WithName("PULLLLLLLLLLLLL")
+	log := ctrl.Log.WithName("git")
+	log.Info("Attempting git operation", "url", url, "path", path)
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		// Clone if doesn't exist
-		log.Info(err.Error())
+		log.Info("Directory doesn't exist, attempting to clone")
 		_, err := git.PlainClone(path, false, &git.CloneOptions{
-			URL: url,
+			URL:             url,
+			InsecureSkipTLS: false,
+			Progress:        os.Stdout,
 		})
-		log.Info(err.Error())
-		return err
+		if err != nil {
+			return fmt.Errorf("failed to clone: %w", err)
+		}
+
+		return nil
 	}
 
 	// Pull if exists
+
+	log.Info("Repository exists, attempting to pull")
 	repo, err := git.PlainOpen(path)
 	if err != nil {
 		return fmt.Errorf("failed to open repo: %w", err)
