@@ -234,7 +234,7 @@ func (c *UserController) loadState() (*UserState, error) {
 }
 
 func (c *UserController) reconcileRoles(ctx context.Context, roles map[string]Role) error {
-
+	log := ctrl.Log.WithName("ClusterRoles")
 	for roleName, roleSpec := range roles {
 		role := &rbacv1.ClusterRole{
 			ObjectMeta: metav1.ObjectMeta{
@@ -242,16 +242,18 @@ func (c *UserController) reconcileRoles(ctx context.Context, roles map[string]Ro
 			},
 			Rules: roleSpec.Rules,
 		}
-
+		log.Info("Creating Role %s......")
 		// Try to create first
 		err := c.Client.Create(ctx, role)
 		if err != nil {
 			if !errors.IsAlreadyExists(err) {
 				// If error is NOT AlreadyExists, return the error
+				log.Error(err, "failed to create role")
 				return fmt.Errorf("failed to create role %s: %w", roleName, err)
 			}
 
 			// If role exists, try to update it
+			log.Info("Role exist...Updating Role %s", roleName)
 			if err := c.Client.Update(ctx, role); err != nil {
 				return fmt.Errorf("failed to update role %s: %w", roleName, err)
 			}
