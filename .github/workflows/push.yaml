@@ -15,5 +15,5 @@ jobs:
         uses: docker/login-action@v3 
         with: 
           registry: harbor.alfredbrowniii.io 
-          username: ${{ Dev.HARBOR_USERNAME }}
-          password: ${{ Dev.HABOR_PASSWORD }}
+          username: ${{ vars.DOCKER_USERNAME }}
+          password: ${{ secrets.HABOR_PASSWORD }}
