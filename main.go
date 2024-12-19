@@ -62,7 +62,7 @@ func main() {
 
 	// Set up controller manager
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
-		Scheme: runtime.NewScheme(),
+		Scheme: scheme,
 	})
 	if err != nil {
 		fmt.Printf("Unable to start manager: %v\n", err)
