@@ -26,6 +26,6 @@ jobs:
         uses: docker/build-push-action@v6  
         with: 
           push: true
-          tags: harbor.alfredbrowniii.io/docker/rbac-controller:latest
+          tags: https://harbor.alfredbrowniii.io/docker/rbac-controller:latest
 
 
