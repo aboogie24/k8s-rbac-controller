@@ -146,11 +146,11 @@ func (c *UserController) Reconcile(ctx context.Context, req reconcile.Request) (
 	log := log.FromContext(ctx)
 
 	// Load state from Git
-	_, err := c.loadState()
-	if err != nil {
-		log.Error(err, "Failed to load state")
-		return reconcile.Result{RequeueAfter: time.Minute * 2}, err
-	}
+	// _, err := c.loadState()
+	// if err != nil {
+	// 	log.Error(err, "Failed to load state")
+	// 	return reconcile.Result{RequeueAfter: time.Minute * 2}, err
+	// }
 
 	// Reconcile roles
 	// if err := c.reconcileRoles(ctx, state.Roles); err != nil {
