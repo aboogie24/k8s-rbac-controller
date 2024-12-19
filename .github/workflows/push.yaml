@@ -7,14 +7,16 @@ on:
 jobs: 
   Push:
     runs-on: ubuntu-latest 
-    env: "Dev"
     steps: 
       - name: Check out repository code
         uses: actions/checkout@v4
 
       - name: Login to harbor
+        env:
+          USERNAME: ${{ vars.DOCKER_USERNAME }}
+          PASSWORD: ${{ secrets.HABOR_PASSWORD }}
         uses: docker/login-action@v3 
         with: 
           registry: harbor.alfredbrowniii.io 
-          username: ${{ vars.DOCKER_USERNAME }}
-          password: ${{ secrets.HABOR_PASSWORD }}
+          username: $USERNAME
+          password: $PASSWORD
