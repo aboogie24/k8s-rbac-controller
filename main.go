@@ -307,6 +307,14 @@ func cloneOrPullRepo(url, path string) error {
 	log := ctrl.Log.WithName("git")
 	log.Info("Attempting git operation", "url", url, "path", path)
 
+	currentDir, err := os.Getwd()
+	if err != nil {
+		log.Error(err, "Failed to get current directory")
+		return err
+	}
+
+	log.Info(currentDir)
+
 	// Clone if doesn't exist
 	if dir, err := os.Open(path); err == nil {
 		defer dir.Close()
@@ -331,7 +339,7 @@ func cloneOrPullRepo(url, path string) error {
 	}
 
 	log.Info("Directory doesn't exist, attempting to clone")
-	_, err := git.PlainClone(path, false, &git.CloneOptions{
+	_, err = git.PlainClone(path, false, &git.CloneOptions{
 		URL:             url,
 		InsecureSkipTLS: false,
 		Progress:        os.Stdout,
