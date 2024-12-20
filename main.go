@@ -422,10 +422,12 @@ func (c *UserController) generateUserCert(ctx context.Context, user User) error 
 	}
 	log.Info("Auto-approving CSR", "name", csr.Name)
 	approvalCondition := certificatesv1.CertificateSigningRequestCondition{
-		Type:    certificatesv1.CertificateApproved,
-		Status:  corev1.ConditionTrue,
-		Reason:  "AutoApproved",
-		Message: fmt.Sprintf("Auto-approved by rbac-controller for user %s", user.Username),
+		Type:               certificatesv1.CertificateApproved,
+		Status:             corev1.ConditionTrue,
+		Reason:             "AutoApproved",
+		Message:            fmt.Sprintf("Auto-approved by rbac-controller for user %s", user.Username),
+		LastTransitionTime: metav1.Now(),
+		LastUpdateTime:     metav1.Now(),
 	}
 	log.Info("ApprovalCondtion Created")
 	csr.Status.Conditions = append(csr.Status.Conditions, approvalCondition)
