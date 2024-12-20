@@ -461,6 +461,8 @@ func (c *UserController) generateUserCert(ctx context.Context, user User) error 
 
 	patch := client.MergeFrom(csr)
 
+	csr.ResourceVersion = ""
+
 	if err := c.Client.Status().Patch(ctx, csr, patch); err != nil {
 		log.Error(err, "Failed to approve CSR",
 			"name", latestCSR.Name,
