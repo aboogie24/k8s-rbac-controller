@@ -390,6 +390,11 @@ func (c *UserController) generateUserCert(ctx context.Context, user User) error 
 		},
 	}
 
+	log.Info("Getting latest CSR version")
+	if err := c.Client.Get(ctx, client.ObjectKey{Name: csr.Name}, csr); err != nil {
+		log.Error(err, "failed to get latest CSR")
+		return fmt.Errorf("failed to get latest CSR: %w", err)
+	}
 	log.Info("Auto-approving CSR", "name", csr.Name)
 	approvalCondition := certificatesv1.CertificateSigningRequestCondition{
 		Type:    certificatesv1.CertificateApproved,
