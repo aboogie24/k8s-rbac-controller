@@ -16,6 +16,7 @@ import (
 	"github.com/go-git/go-git/v5"
 	"gopkg.in/yaml.v2"
 	certificatesv1 "k8s.io/api/certificates/v1"
+	certificatesv1beta1 "k8s.io/api/certificates/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -23,6 +24,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -62,6 +65,7 @@ type UserController struct {
 	certDir      string
 	lastCommit   string
 	lastPullTime time.Time
+	certClient   *kubernetes.Clientset
 }
 
 func main() {
@@ -109,13 +113,18 @@ func main() {
 		fmt.Printf("%v", g)
 	}
 
+	config, err := rest.InClusterConfig()
+
+	certClient, err := kubernetes.NewForConfig(config)
+
 	// Create and register controller
 	controller := &UserController{
-		Client:   mgr.GetClient(),
-		Scheme:   mgr.GetScheme(),
-		repoPath: repoPath,
-		certDir:  certDir,
-		repoURL:  repoURL,
+		Client:     mgr.GetClient(),
+		Scheme:     mgr.GetScheme(),
+		certClient: certClient,
+		repoPath:   repoPath,
+		certDir:    certDir,
+		repoURL:    repoURL,
 	}
 
 	if err := ctrl.NewControllerManagedBy(mgr).
@@ -417,19 +426,16 @@ func (c *UserController) generateUserCert(ctx context.Context, user User) error 
 	}
 
 	log.Info("Getting latest CSR version")
-	latestCSR := &certificatesv1.CertificateSigningRequest{}
+	latestCSR := &certificatesv1beta1.CertificateSigningRequest{}
 	if err := c.Client.Get(ctx, types.NamespacedName{Name: csr.Name}, latestCSR); err != nil {
 		log.Error(err, "failed to get latest CSR")
 		return fmt.Errorf("failed to get latest CSR: %w", err)
 	}
 
-	//Create DeepCopy
-	originalCSR := latestCSR.DeepCopy()
-
 	// Add the approval condition
 	log.Info("Auto-approving CSR", "name", csr.Name)
-	approvalCondition := certificatesv1.CertificateSigningRequestCondition{
-		Type:               certificatesv1.CertificateApproved,
+	approvalCondition := certificatesv1beta1.CertificateSigningRequestCondition{
+		Type:               certificatesv1beta1.CertificateApproved,
 		Status:             corev1.ConditionTrue,
 		Reason:             "AutoApproved",
 		Message:            fmt.Sprintf("Auto-approved by rbac-controller for user %s", user.Username),
@@ -438,7 +444,7 @@ func (c *UserController) generateUserCert(ctx context.Context, user User) error 
 	}
 
 	log.Info("ApprovalCondtion Created")
-	latestCSR.Status.Conditions = []certificatesv1.CertificateSigningRequestCondition{approvalCondition}
+	latestCSR.Status.Conditions = []certificatesv1beta1.CertificateSigningRequestCondition{approvalCondition}
 
 	conditionsJSON, err := json.Marshal(latestCSR.Status.Conditions)
 	if err != nil {
@@ -450,14 +456,19 @@ func (c *UserController) generateUserCert(ctx context.Context, user User) error 
 	}
 
 	log.Info("Updating CSR status with approval")
-	patch := client.MergeFrom(originalCSR)
+	// patch := client.MergeFrom(originalCSR)
 
-	if err := c.Client.Status().Patch(ctx, latestCSR, patch); err != nil {
-		log.Error(err, "Failed to approve CSR",
-			"name", latestCSR.Name,
-			"conditions", string(conditionsJSON))
-		return fmt.Errorf("failed to approve CSR: %w", err)
+	_, err = c.certClient.CertificatesV1beta1().CertificateSigningRequests().UpdateApproval(ctx, latestCSR, metav1.UpdateOptions{})
+	if err != nil {
+		log.Error(err, "Failed to approve CSR")
+		return fmt.Errorf("Failed to approve CSR: %w", err)
 	}
+	// if err := c.Client.Status().Patch(ctx, latestCSR, patch); err != nil {
+	// 	log.Error(err, "Failed to approve CSR",
+	// 		"name", latestCSR.Name,
+	// 		"conditions", string(conditionsJSON))
+	// 	return fmt.Errorf("failed to approve CSR: %w", err)
+	// }
 
 	log.Info("Waiting for Certificated to be issued")
 	var cert []byte
