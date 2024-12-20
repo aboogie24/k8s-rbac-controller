@@ -448,11 +448,20 @@ func (c *UserController) generateUserCert(ctx context.Context, user User) error 
 			"name", latestCSR.Name,
 			"conditions", string(conditionsJSON))
 	}
-	csr.Status.Conditions = append(csr.Status.Conditions, approvalCondition)
+	// csr.Status.Conditions = append(csr.Status.Conditions, approvalCondition)
 
 	log.Info("Updating CSR status with approval")
 
-	if err := c.Client.Status().Update(ctx, latestCSR); err != nil {
+	//c.Client.Certificatesv1().CertificateSigningRequest().UpdateApproval(ctx, csr.Name, latestCSR, metav1.UpdateOptions{})
+
+	// _, err = c.Client.CertificatesV1().CertificateSigningRequests().UpdateApproval(ctx, name, csr, metav1.UpdateOptions{})
+	// if err != nil {
+	// 	return fmt.Errorf("failed to approve CSR %s: %v", name, err)
+	// }
+
+	patch := client.MergeFrom(csr)
+
+	if err := c.Client.Status().Patch(ctx, csr, patch); err != nil {
 		log.Error(err, "Failed to approve CSR",
 			"name", latestCSR.Name,
 			"conditions", string(conditionsJSON))
