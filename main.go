@@ -392,13 +392,11 @@ func (c *UserController) generateUserCert(ctx context.Context, user User) error 
 			Request:           csrPEM,
 			SignerName:        "kubernetes.io/kube-apiserver-client",
 			ExpirationSeconds: pointer.Int32(86400 * 365),
-			Usages: []certificatesv1.KeyUsage{
-				certificatesv1.UsageClientAuth,
-				certificatesv1.UsageDigitalSignature,
-				certificatesv1.UsageKeyEncipherment,
-			},
-			Username: user.Email,
-			Groups:   []string{"system:authenticated"},
+			Usages:            []certificatesv1.KeyUsage{certificatesv1.UsageClientAuth, certificatesv1.UsageDigitalSignature, certificatesv1.UsageKeyEncipherment},
+			Username:          user.Email,
+			UID:               "",
+			Groups:            []string{"system:authenticated"},
+			Extra:             map[string]certificatesv1.ExtraValue{},
 		},
 	}
 
@@ -434,8 +432,8 @@ func (c *UserController) generateUserCert(ctx context.Context, user User) error 
 
 	// Add the approval condition
 	log.Info("Auto-approving CSR", "name", csr.Name)
-	approvalCondition := certificatesv1beta1.CertificateSigningRequestCondition{
-		Type:               certificatesv1beta1.CertificateApproved,
+	approvalCondition := certificatesv1.CertificateSigningRequestCondition{
+		Type:               certificatesv1.CertificateApproved,
 		Status:             corev1.ConditionTrue,
 		Reason:             "AutoApproved",
 		Message:            fmt.Sprintf("Auto-approved by rbac-controller for user %s", user.Username),
@@ -444,7 +442,7 @@ func (c *UserController) generateUserCert(ctx context.Context, user User) error 
 	}
 
 	log.Info("ApprovalCondtion Created")
-	latestCSR.Status.Conditions = []certificatesv1beta1.CertificateSigningRequestCondition{approvalCondition}
+	csr.Status.Conditions = []certificatesv1.CertificateSigningRequestCondition{approvalCondition}
 
 	conditionsJSON, err := json.Marshal(latestCSR.Status.Conditions)
 	if err != nil {
@@ -458,7 +456,7 @@ func (c *UserController) generateUserCert(ctx context.Context, user User) error 
 	log.Info("Updating CSR status with approval")
 	// patch := client.MergeFrom(originalCSR)
 
-	_, err = c.certClient.CertificatesV1beta1().CertificateSigningRequests().UpdateApproval(ctx, latestCSR, metav1.UpdateOptions{})
+	_, err = c.certClient.CertificatesV1().CertificateSigningRequests().UpdateApproval(ctx, csr.Name, csr, metav1.UpdateOptions{})
 	if err != nil {
 		log.Error(err, "Failed to approve CSR")
 		return fmt.Errorf("Failed to approve CSR: %w", err)
