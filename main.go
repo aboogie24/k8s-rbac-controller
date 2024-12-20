@@ -275,15 +275,27 @@ func (c *UserController) reconcileRoles(ctx context.Context, roles map[string]Ro
 }
 
 func (c *UserController) reconcileUsers(ctx context.Context, users []User) error {
+	log := ctrl.Log.WithName("Users")
 	for _, user := range users {
 		// Generate certificate
+		log.Info("Generating Cert for user:",
+			"userName", user.Username)
 		if err := c.generateUserCert(user); err != nil {
 			return fmt.Errorf("failed to generate certificate for user %s: %w", user.Username, err)
 		}
 
+		log.Info("Generating Role binding for that user")
 		// Create role bindings
 		for _, namespace := range user.Namespaces {
-			binding := &rbacv1.RoleBinding{}
+			binding := &rbacv1.RoleBinding{
+				TypeMeta: metav1.TypeMeta{},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      user.Username,
+					Namespace: namespace,
+				},
+				Subjects: []rbacv1.Subject{},
+				RoleRef:  rbacv1.RoleRef{},
+			}
 			binding.Name = fmt.Sprintf("%s-%s", user.Username, user.Role)
 			binding.Namespace = namespace
 			binding.Subjects = []rbacv1.Subject{{
@@ -297,6 +309,7 @@ func (c *UserController) reconcileUsers(ctx context.Context, users []User) error
 				APIGroup: "rbac.authorization.k8s.io",
 			}
 
+			log.Info("Creating Role binding")
 			if err := c.Client.Create(ctx, binding); err != nil {
 				if client.IgnoreAlreadyExists(err) != nil {
 					return fmt.Errorf("failed to create role binding: %w", err)
