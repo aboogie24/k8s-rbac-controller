@@ -236,13 +236,21 @@ func (c *UserController) loadState() (*UserState, error) {
 func (c *UserController) reconcileRoles(ctx context.Context, roles map[string]Role) error {
 	log := ctrl.Log.WithName("ClusterRoles")
 	for roleName, roleSpec := range roles {
+		log.Info("Creating/Updating Role",
+			"roleName", roleName,
+			"rules", roleSpec.Rules)
+
 		role := &rbacv1.ClusterRole{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: roleName,
 			},
 			Rules: roleSpec.Rules,
 		}
+
 		log.Info("Creating Role %s......")
+		if roleBytes, err := yaml.Marshal(role); err == nil {
+			log.Info("Role struture", "role", string(roleBytes))
+		}
 		// Try to create first
 		err := c.Client.Create(ctx, role)
 		if err != nil {
