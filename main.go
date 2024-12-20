@@ -247,9 +247,11 @@ func (c *UserController) reconcileRoles(ctx context.Context, roles map[string]Ro
 			Rules: roleSpec.Rules,
 		}
 
-		log.Info("Creating Role %s......")
+		log.Info("Creating Role %s......", roleName)
 		if roleBytes, err := yaml.Marshal(role); err == nil {
-			log.Info("Role struture", "role", string(roleBytes))
+			log.Info("Role struture",
+				"roleName", roleName,
+				"roleYAML", string(roleBytes))
 		}
 		// Try to create first
 		err := c.Client.Create(ctx, role)
