@@ -377,8 +377,7 @@ func (c *UserController) generateUserCert(ctx context.Context, user User) error 
 	// Submit CSR to k8s API
 	csr := &certificatesv1.CertificateSigningRequest{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:            fmt.Sprintf("%s-%d", user.Username, time.Now().Unix()),
-			ResourceVersion: "",
+			Name: fmt.Sprintf("%s-%d", user.Username, time.Now().Unix()),
 		},
 		Spec: certificatesv1.CertificateSigningRequestSpec{
 			Request:           csrPEM,
@@ -424,10 +423,10 @@ func (c *UserController) generateUserCert(ctx context.Context, user User) error 
 		return fmt.Errorf("failed to get latest CSR: %w", err)
 	}
 
-	// if err := c.Client.Get(ctx, client.ObjectKey{Name: csr.Name}, csr); err != nil {
-	// 	log.Error(err, "failed to get latest CSR")
-	// 	return fmt.Errorf("failed to get latest CSR: %w", err)
-	// }
+	//Create DeepCopy
+	originalCSR := latestCSR.DeepCopy()
+
+	// Add the approval condition
 	log.Info("Auto-approving CSR", "name", csr.Name)
 	approvalCondition := certificatesv1.CertificateSigningRequestCondition{
 		Type:               certificatesv1.CertificateApproved,
@@ -449,49 +448,16 @@ func (c *UserController) generateUserCert(ctx context.Context, user User) error 
 			"name", latestCSR.Name,
 			"conditions", string(conditionsJSON))
 	}
-	// csr.Status.Conditions = append(csr.Status.Conditions, approvalCondition)
 
 	log.Info("Updating CSR status with approval")
+	patch := client.MergeFrom(originalCSR)
 
-	//c.Client.Certificatesv1().CertificateSigningRequest().UpdateApproval(ctx, csr.Name, latestCSR, metav1.UpdateOptions{})
-
-	// _, err = c.Client.CertificatesV1().CertificateSigningRequests().UpdateApproval(ctx, name, csr, metav1.UpdateOptions{})
-	// if err != nil {
-	// 	return fmt.Errorf("failed to approve CSR %s: %v", name, err)
-	// }
-
-	patch := client.MergeFrom(csr)
-
-	csr.ResourceVersion = ""
-
-	if err := c.Client.Status().Patch(ctx, csr, patch); err != nil {
+	if err := c.Client.Status().Patch(ctx, latestCSR, patch); err != nil {
 		log.Error(err, "Failed to approve CSR",
 			"name", latestCSR.Name,
 			"conditions", string(conditionsJSON))
 		return fmt.Errorf("failed to approve CSR: %w", err)
 	}
-
-	log.Info("Creating CSR",
-		"name", csr.Name,
-		"user", user.Username)
-
-	if err := c.Client.Create(ctx, csr); err != nil {
-		return fmt.Errorf("failed to create CSR: %w", err)
-	}
-
-	// // Auto approve CSR
-	// log.Info("Auto-approving CSR", "name", csr.Name)
-	// approvalCond := certificatesv1.CertificateSigningRequestCondition{
-	// 	Type:    certificatesv1.CertificateApproved,
-	// 	Status:  corev1.ConditionTrue,
-	// 	Reason:  "AutoApproved",
-	// 	Message: fmt.Sprintf("Auto-approved by user-controller for user %s", user.Username),
-	// }
-
-	// csr.Status.Conditions = append(csr.Status.Conditions, approvalCond)
-	// if err := c.Client.Status().Update(ctx, csr); err != nil {
-	// 	return fmt.Errorf("failed to approve CSR: %w", err)
-	// }
 
 	log.Info("Waiting for Certificated to be issued")
 	var cert []byte
