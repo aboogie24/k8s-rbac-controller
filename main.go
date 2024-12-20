@@ -20,6 +20,8 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -388,6 +390,29 @@ func (c *UserController) generateUserCert(ctx context.Context, user User) error 
 			Username: user.Email,
 			Groups:   []string{"system:authenticated"},
 		},
+	}
+
+	log.Info("Creating CSR", "name", csr.Name, "user", user.Username)
+	if err := c.Client.Create(ctx, csr); err != nil {
+		return fmt.Errorf("failed to create CSR: %w", err)
+	}
+
+	log.Info("Waiting for CSR to be available")
+	poller := wait.ConditionWithContextFunc(func(condCtx context.Context) (bool, error) {
+		if err := c.Client.Get(condCtx, types.NamespacedName{
+			Name: csr.Name,
+		}, csr); err != nil {
+			if errors.IsNotFound(err) {
+				return false, nil
+			}
+			return false, err
+		}
+		return true, nil
+	})
+
+	err = wait.PollUntilContextTimeout(ctx, time.Second, time.Second*10, true, poller)
+	if err != nil {
+		return fmt.Errorf("failed waiting for CSR to be available: %w", err)
 	}
 
 	log.Info("Getting latest CSR version")
