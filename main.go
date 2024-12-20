@@ -16,7 +16,6 @@ import (
 	"github.com/go-git/go-git/v5"
 	"gopkg.in/yaml.v2"
 	certificatesv1 "k8s.io/api/certificates/v1"
-	certificatesv1beta1 "k8s.io/api/certificates/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -424,7 +423,7 @@ func (c *UserController) generateUserCert(ctx context.Context, user User) error 
 	}
 
 	log.Info("Getting latest CSR version")
-	latestCSR := &certificatesv1beta1.CertificateSigningRequest{}
+	latestCSR := &certificatesv1.CertificateSigningRequest{}
 	if err := c.Client.Get(ctx, types.NamespacedName{Name: csr.Name}, latestCSR); err != nil {
 		log.Error(err, "failed to get latest CSR")
 		return fmt.Errorf("failed to get latest CSR: %w", err)
