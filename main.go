@@ -6,6 +6,7 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/json"
 	"encoding/pem"
 	"fmt"
 	"os"
@@ -435,8 +436,18 @@ func (c *UserController) generateUserCert(ctx context.Context, user User) error 
 		LastTransitionTime: metav1.Now(),
 		LastUpdateTime:     metav1.Now(),
 	}
+
 	log.Info("ApprovalCondtion Created")
 	latestCSR.Status.Conditions = []certificatesv1.CertificateSigningRequestCondition{approvalCondition}
+
+	conditionsJSON, err := json.Marshal(latestCSR.Status.Conditions)
+	if err != nil {
+		log.Error(err, "failed to marshel conditions for logging")
+	} else {
+		log.Info("CSR Conditions",
+			"name", latestCSR.Name,
+			"conditions", string(conditionsJSON))
+	}
 	csr.Status.Conditions = append(csr.Status.Conditions, approvalCondition)
 
 	log.Info("Updating CSR status with approval")
@@ -453,19 +464,19 @@ func (c *UserController) generateUserCert(ctx context.Context, user User) error 
 		return fmt.Errorf("failed to create CSR: %w", err)
 	}
 
-	// Auto approve CSR
-	log.Info("Auto-approving CSR", "name", csr.Name)
-	approvalCond := certificatesv1.CertificateSigningRequestCondition{
-		Type:    certificatesv1.CertificateApproved,
-		Status:  corev1.ConditionTrue,
-		Reason:  "AutoApproved",
-		Message: fmt.Sprintf("Auto-approved by user-controller for user %s", user.Username),
-	}
+	// // Auto approve CSR
+	// log.Info("Auto-approving CSR", "name", csr.Name)
+	// approvalCond := certificatesv1.CertificateSigningRequestCondition{
+	// 	Type:    certificatesv1.CertificateApproved,
+	// 	Status:  corev1.ConditionTrue,
+	// 	Reason:  "AutoApproved",
+	// 	Message: fmt.Sprintf("Auto-approved by user-controller for user %s", user.Username),
+	// }
 
-	csr.Status.Conditions = append(csr.Status.Conditions, approvalCond)
-	if err := c.Client.Status().Update(ctx, csr); err != nil {
-		return fmt.Errorf("failed to approve CSR: %w", err)
-	}
+	// csr.Status.Conditions = append(csr.Status.Conditions, approvalCond)
+	// if err := c.Client.Status().Update(ctx, csr); err != nil {
+	// 	return fmt.Errorf("failed to approve CSR: %w", err)
+	// }
 
 	log.Info("Waiting for Certificated to be issued")
 	var cert []byte
