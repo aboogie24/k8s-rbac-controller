@@ -396,7 +396,7 @@ func (c *UserController) generateUserCert(ctx context.Context, user User) error 
 	if err := c.Client.Create(ctx, csr); err != nil {
 		return fmt.Errorf("failed to create CSR: %w", err)
 	}
-
+	// Wait for CSR to be ready
 	log.Info("Waiting for CSR to be available")
 	poller := wait.ConditionWithContextFunc(func(condCtx context.Context) (bool, error) {
 		if err := c.Client.Get(condCtx, types.NamespacedName{
@@ -416,10 +416,16 @@ func (c *UserController) generateUserCert(ctx context.Context, user User) error 
 	}
 
 	log.Info("Getting latest CSR version")
-	if err := c.Client.Get(ctx, client.ObjectKey{Name: csr.Name}, csr); err != nil {
+	latestCSR := &certificatesv1.CertificateSigningRequest{}
+	if err := c.Client.Get(ctx, types.NamespacedName{Name: csr.Name}, latestCSR); err != nil {
 		log.Error(err, "failed to get latest CSR")
 		return fmt.Errorf("failed to get latest CSR: %w", err)
 	}
+
+	// if err := c.Client.Get(ctx, client.ObjectKey{Name: csr.Name}, csr); err != nil {
+	// 	log.Error(err, "failed to get latest CSR")
+	// 	return fmt.Errorf("failed to get latest CSR: %w", err)
+	// }
 	log.Info("Auto-approving CSR", "name", csr.Name)
 	approvalCondition := certificatesv1.CertificateSigningRequestCondition{
 		Type:               certificatesv1.CertificateApproved,
@@ -430,8 +436,11 @@ func (c *UserController) generateUserCert(ctx context.Context, user User) error 
 		LastUpdateTime:     metav1.Now(),
 	}
 	log.Info("ApprovalCondtion Created")
+	latestCSR.Status.Conditions = []certificatesv1.CertificateSigningRequestCondition{approvalCondition}
 	csr.Status.Conditions = append(csr.Status.Conditions, approvalCondition)
-	if err := c.Client.Status().Update(ctx, csr); err != nil {
+
+	log.Info("Updating CSR status with approval")
+	if err := c.Client.Status().Update(ctx, latestCSR); err != nil {
 		log.Error(err, "failed to approve CSR")
 		return fmt.Errorf("failed to approve CSR: %w", err)
 	}
