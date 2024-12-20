@@ -451,8 +451,10 @@ func (c *UserController) generateUserCert(ctx context.Context, user User) error 
 	csr.Status.Conditions = append(csr.Status.Conditions, approvalCondition)
 
 	log.Info("Updating CSR status with approval")
-	if err := c.Client.Status().Update(ctx, latestCSR); err != nil {
-		log.Error(err, "failed to approve CSR")
+	if err := c.Client.SubResource("approval").Update(ctx, latestCSR, &client.SubResourceUpdateOptions{}); err != nil {
+		log.Error(err, "Failed to approve CSR",
+			"name", latestCSR.Name,
+			"conditions", string(conditionsJSON))
 		return fmt.Errorf("failed to approve CSR: %w", err)
 	}
 
