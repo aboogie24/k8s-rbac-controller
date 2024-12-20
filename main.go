@@ -377,7 +377,8 @@ func (c *UserController) generateUserCert(ctx context.Context, user User) error 
 	// Submit CSR to k8s API
 	csr := &certificatesv1.CertificateSigningRequest{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: fmt.Sprintf("%s-%d", user.Username, time.Now().Unix()),
+			Name:            fmt.Sprintf("%s-%d", user.Username, time.Now().Unix()),
+			ResourceVersion: "",
 		},
 		Spec: certificatesv1.CertificateSigningRequestSpec{
 			Request:           csrPEM,
