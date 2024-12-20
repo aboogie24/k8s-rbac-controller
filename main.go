@@ -263,7 +263,8 @@ func (c *UserController) reconcileRoles(ctx context.Context, roles map[string]Ro
 			}
 
 			// If role exists, try to update it
-			log.Info("Role exist...Updating Role %s", roleName)
+			log.Info("Role exist...Updating Role:",
+				"RoleName", roleName)
 			if err := c.Client.Update(ctx, role); err != nil {
 				return fmt.Errorf("failed to update role %s: %w", roleName, err)
 			}
