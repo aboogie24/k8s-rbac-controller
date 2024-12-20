@@ -2,6 +2,11 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/pem"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -9,11 +14,13 @@ import (
 
 	"github.com/go-git/go-git/v5"
 	"gopkg.in/yaml.v2"
+	certificatesv1 "k8s.io/api/certificates/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -72,9 +79,9 @@ func main() {
 	log.Info("RepoURL: %v  ...  RepoPath: %v", repoURL, repoPath)
 
 	scheme := runtime.NewScheme()
-	_ = corev1.AddToScheme(scheme) // Register ConfigMap and other core types
-	_ = rbacv1.AddToScheme(scheme) // Register RBAC types
-	//_ = certificatesv1.AddToScheme(scheme) // Register Certificate type
+	_ = corev1.AddToScheme(scheme)         // Register ConfigMap and other core types
+	_ = rbacv1.AddToScheme(scheme)         // Register RBAC types
+	_ = certificatesv1.AddToScheme(scheme) // Register Certificate type
 
 	// Set up controller manager
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
@@ -280,7 +287,7 @@ func (c *UserController) reconcileUsers(ctx context.Context, users []User) error
 		// Generate certificate
 		log.Info("Generating Cert for user:",
 			"userName", user.Username)
-		if err := c.generateUserCert(user); err != nil {
+		if err := c.generateUserCert(ctx, user); err != nil {
 			return fmt.Errorf("failed to generate certificate for user %s: %w", user.Username, err)
 		}
 
@@ -334,28 +341,129 @@ func PathExists(path string) (exists bool, err error) {
 	return false, err // Return error for other cases (permission denied, etc.)
 }
 
-func (c *UserController) generateUserCert(user User) error {
+func (c *UserController) generateUserCert(ctx context.Context, user User) error {
+	log := ctrl.Log.WithName("Cert")
+	log.Info("Joining Cert Path")
+
+	// Create user private key
+	privatekey, err := rsa.GenerateKey(rand.Reader, 2048)
+	log.Info("Creating CSR template")
+	// Create CSR template
+	template := &x509.CertificateRequest{
+		Subject: pkix.Name{
+			CommonName:   user.Email,
+			Organization: []string{"system:authenicated"},
+		},
+		DNSNames:           []string{user.Username},
+		SignatureAlgorithm: x509.SHA256WithRSA,
+	}
+
+	// Create CSR
+	csrDER, err := x509.CreateCertificateRequest(rand.Reader, template, privatekey)
+	if err != nil {
+		log.Error(err, "failed to Create CSR Rewquest")
+		return err
+	}
+
+	csrPEM := pem.EncodeToMemory(&pem.Block{
+		Type:  "CERTIFICATE REQUEST",
+		Bytes: csrDER,
+	})
+
+	log.Info("Submitting CSR to K8s")
+	// Submit CSR to k8s API
+	csr := &certificatesv1.CertificateSigningRequest{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: fmt.Sprintf("%s-%d", user.Username, time.Now().Unix()),
+		},
+		Spec: certificatesv1.CertificateSigningRequestSpec{
+			Request:           csrPEM,
+			SignerName:        "kubernetes.io/kube-apiserver-client",
+			ExpirationSeconds: pointer.Int32(86400 * 365),
+			Usages: []certificatesv1.KeyUsage{
+				certificatesv1.UsageClientAuth,
+				certificatesv1.UsageDigitalSignature,
+				certificatesv1.UsageKeyEncipherment,
+			},
+			Username: user.Email,
+			Groups:   []string{"system:authenticated"},
+		},
+	}
+
+	log.Info("Auto-approving CSR", "name", csr.Name)
+	approvalCondition := certificatesv1.CertificateSigningRequestCondition{
+		Type:    certificatesv1.CertificateApproved,
+		Status:  corev1.ConditionTrue,
+		Reason:  "AutoApproved",
+		Message: fmt.Sprintf("Auto-approved by rbac-controller for user %s", user.Username),
+	}
+
+	csr.Status.Conditions = append(csr.Status.Conditions, approvalCondition)
+	if err := c.Status().Update(ctx, csr); err != nil {
+		return fmt.Errorf("failed to approve CSR: %w", err)
+	}
+
+	log.Info("Creating CSR",
+		"name", csr.Name,
+		"user", user.Username)
+
+	if err := c.Client.Create(ctx, csr); err != nil {
+		return fmt.Errorf("failed to create CSR: %w", err)
+	}
+
+	// Auto approve CSR
+	log.Info("Auto-approving CSR", "name", csr.Name)
+	approvalCond := certificatesv1.CertificateSigningRequestCondition{
+		Type:    certificatesv1.CertificateApproved,
+		Status:  corev1.ConditionTrue,
+		Reason:  "AutoApproved",
+		Message: fmt.Sprintf("Auto-approved by user-controller for user %s", user.Username),
+	}
+
+	csr.Status.Conditions = append(csr.Status.Conditions, approvalCond)
+	if err := c.Client.Status().Update(ctx, csr); err != nil {
+		return fmt.Errorf("failed to approve CSR: %w", err)
+	}
+
+	log.Info("Waiting for Certificated to be issued")
+	var cert []byte
+	for i := 0; i < 10; i++ {
+		if err := c.Client.Get(ctx, client.ObjectKey{Name: csr.Name}, csr); err != nil {
+			return fmt.Errorf("failed to get CSR %w", err)
+		}
+		if csr.Status.Certificate != nil {
+			cert = csr.Status.Certificate
+			break
+		}
+		time.Sleep(time.Second)
+	}
+	if cert == nil {
+		return fmt.Errorf("timeout waiting for certificate to be issued")
+	}
+
+	// Save private key and certificate on local container
+
 	certPath := filepath.Join(c.certDir, fmt.Sprintf("%s.crt", user.Username))
-	//keyPath := filepath.Join(c.certDir, fmt.Sprintf("%s.key", user.Username))
+	keyPath := filepath.Join(c.certDir, fmt.Sprintf("%s.key", user.Username))
 
-	// Create user certificate and save the certificate on local drive
-	err := signUserCertificate(user.Username, user.Email)
-	if err != nil {
-		return err
+	keyPEM := pem.EncodeToMemory(&pem.Block{
+		Type:  "RSA PRIVATE KEY",
+		Bytes: x509.MarshalPKCS1PrivateKey(privatekey),
+	})
+	if err := os.WriteFile(keyPath, keyPEM, 0600); err != nil {
+		return fmt.Errorf("failed to save private key: %w", err)
+	}
+	if err := os.WriteFile(certPath, keyPEM, 0600); err != nil {
+		return fmt.Errorf("failed to save certificate: %w", err)
 	}
 
-	// Verify certificate
-	_, err = PathExists(certPath)
-	if err != nil {
-		return err
-	}
-
-	_, err = isCertificateValid(certPath)
-	if err != nil {
-		return err
-	}
+	log.Info("Successfully generated certificate",
+		"user", user.Username,
+		"keyPath", keyPath,
+		"cerPath", certPath)
 
 	return nil
+
 }
 
 func cloneOrPullRepo(url, path string) (*git.Repository, error) {

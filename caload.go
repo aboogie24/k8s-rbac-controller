@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
@@ -11,7 +12,43 @@ import (
 	"io/ioutil"
 	"path/filepath"
 	"time"
+
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
+
+func getClusterCA(ctx context.Context, client client.Client) (*x509.Certificate, error) {
+	// Get the kube-root-ca.crt ConfigMap that exists in each namespace
+	cm := &corev1.ConfigMap{}
+	err := client.Get(ctx, types.NamespacedName{
+		Name:      "kube-root-ca.crt",
+		Namespace: "kube-system",
+	}, cm)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get CA ConfigMap: %w", err)
+	}
+
+	// The CA cert is stored in the "ca.crt" key
+	caCertPEM, ok := cm.Data["ca.crt"]
+	if !ok {
+		return nil, fmt.Errorf("ca.crt not found in ConfigMap")
+	}
+
+	// Decode PEM block
+	block, _ := pem.Decode([]byte(caCertPEM))
+	if block == nil {
+		return nil, fmt.Errorf("failed to parse certificate PEM")
+	}
+
+	// Parse the CA certificate
+	caCert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse CA certificate: %w", err)
+	}
+
+	return caCert, nil
+}
 
 // loadCA loads the Kubernetes cluster CA certificate and private key
 func loadCA() (*x509.Certificate, interface{}, error) {
@@ -79,6 +116,7 @@ func verifyCA(caCert *x509.Certificate) error {
 // Example usage of loading and using the CA for signing
 func signUserCertificate(username, email string) error {
 	// Load the CA certificate and private key
+	fmt.Print()
 	caCert, caKey, err := loadCA()
 	if err != nil {
 		return fmt.Errorf("failed to load CA: %v", err)
