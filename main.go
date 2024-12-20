@@ -247,7 +247,7 @@ func (c *UserController) reconcileRoles(ctx context.Context, roles map[string]Ro
 			Rules: roleSpec.Rules,
 		}
 
-		log.Info("Creating Role %s......", roleName)
+		log.Info("Creating Role")
 		if roleBytes, err := yaml.Marshal(role); err == nil {
 			log.Info("Role struture",
 				"roleName", roleName,
