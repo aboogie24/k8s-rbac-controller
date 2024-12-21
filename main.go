@@ -297,6 +297,23 @@ func (c *UserController) reconcileRoles(ctx context.Context, roles map[string]Ro
 func (c *UserController) reconcileUsers(ctx context.Context, users []User) error {
 	log := ctrl.Log.WithName("Users")
 	for _, user := range users {
+		// First, check if certificates already exist for this user
+		certPath := filepath.Join(c.certDir, fmt.Sprintf("%s.crt", user.Username))
+		// keyPath := filepath.Join(c.certDir, fmt.Sprintf("%s.key", user.Username))
+
+		certExists, err := PathExists(certPath)
+		if err != nil {
+			return fmt.Errorf("failed to check cert path for user %s: %w", user.Username, err)
+		}
+
+		if !certExists {
+			// Generate certificate
+			log.Info("Generating Cert for user:",
+				"userName", user.Username)
+			if err := c.generateUserCert(ctx, user); err != nil {
+				return fmt.Errorf("failed to generate certificate for user %s: %w", user.Username, err)
+			}
+		}
 		// Generate certificate
 		log.Info("Generating Cert for user:",
 			"userName", user.Username)
