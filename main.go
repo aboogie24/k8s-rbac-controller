@@ -314,12 +314,6 @@ func (c *UserController) reconcileUsers(ctx context.Context, users []User) error
 				return fmt.Errorf("failed to generate certificate for user %s: %w", user.Username, err)
 			}
 		}
-		// Generate certificate
-		log.Info("Generating Cert for user:",
-			"userName", user.Username)
-		if err := c.generateUserCert(ctx, user); err != nil {
-			return fmt.Errorf("failed to generate certificate for user %s: %w", user.Username, err)
-		}
 
 		log.Info("Generating Role binding for that user")
 		// Create role bindings
