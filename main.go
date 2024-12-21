@@ -25,6 +25,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
+	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -499,6 +501,11 @@ func (c *UserController) generateUserCert(ctx context.Context, user User) error 
 		return fmt.Errorf("failed to save certificate: %w", err)
 	}
 
+	// Create kubeconfig and store in secrets
+	if err := c.generateKubeConfig(ctx, user.Username, certPath, keyPath); err != nil {
+		return fmt.Errorf("failed to generate Kube config")
+	}
+
 	log.Info("Successfully generated certificate",
 		"user", user.Username,
 		"keyPath", keyPath,
@@ -608,4 +615,90 @@ func (c *UserController) startGitPuller(ctx context.Context) error {
 			}
 		}
 	}
+}
+
+func (c *UserController) generateKubeConfig(ctx context.Context, username string, certPath string, keyPath string) error {
+	// Read the certificate and key files
+	cert, err := os.ReadFile(certPath)
+	if err != nil {
+		return fmt.Errorf("failed to read certificate: %w", err)
+	}
+
+	key, err := os.ReadFile(keyPath)
+	if err != nil {
+		return fmt.Errorf("failed to read key: %w", err)
+	}
+
+	// Get cluster CA cert
+	config, err := rest.InClusterConfig()
+	if err != nil {
+		return fmt.Errorf("failed to get cluster config: %w", err)
+	}
+
+	// Create kubeconfig structure
+	kubeConfig := clientcmdapi.Config{
+		APIVersion: "v1",
+		Kind:       "Config",
+		Clusters: map[string]*clientcmdapi.Cluster{
+			"kubernetes": {
+				Server:                   config.Host,
+				CertificateAuthorityData: config.CAData,
+			},
+		},
+		AuthInfos: map[string]*clientcmdapi.AuthInfo{
+			username: {
+				ClientCertificateData: cert,
+				ClientKeyData:         key,
+			},
+		},
+		Contexts: map[string]*clientcmdapi.Context{
+			username: {
+				Cluster:  "kubernetes",
+				AuthInfo: username,
+			},
+		},
+		CurrentContext: username,
+	}
+
+	if err := c.saveUserKubeconfig(ctx, username, &kubeConfig); err != nil {
+		return fmt.Errorf("failed to save kubeconfig: %w", err)
+	}
+
+	// Save the kubeconfig
+	kubeconfigPath := filepath.Join(c.certDir, fmt.Sprintf("%s-kubeconfig", username))
+	return clientcmd.WriteToFile(kubeConfig, kubeconfigPath)
+}
+
+func (c *UserController) saveUserKubeconfig(ctx context.Context, username string, kubeconfig *clientcmdapi.Config) error {
+	// Convert kubeconfig to YAML
+	kubeconfigYAML, err := clientcmd.Write(*kubeconfig)
+	if err != nil {
+		return fmt.Errorf("failed to marshal kubeconfig: %w", err)
+	}
+
+	// Create a secret containing the kubeconfig
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      fmt.Sprintf("user-kubeconfig-%s", username),
+			Namespace: "default",
+			Labels: map[string]string{
+				"app.kubernetes.io/managed-by": "user-controller",
+				"user.kubernetes.io/username":  username,
+			},
+		},
+		Type: corev1.SecretTypeOpaque,
+		Data: map[string][]byte{
+			"kubeconfig": kubeconfigYAML,
+		},
+	}
+
+	// Create or update the secret
+	if err := c.Client.Create(ctx, secret); err != nil {
+		if errors.IsAlreadyExists(err) {
+			return c.Update(ctx, secret)
+		}
+		return err
+	}
+
+	return nil
 }
