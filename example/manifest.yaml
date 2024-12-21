@@ -38,19 +38,7 @@ roleRef:
     kind: ClusterRole
     name: user-controller
     apiGroup: rbac.authorization.k8s.io
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: user-controller-cluster
-subjects:
-- kind: ServiceAccount
-  name: user-controller
-  namespace: default
-roleRef:
-    kind: ClusterRole
-    name: cluster-admin
-    apiGroup: rbac.authorization.k8s.io
+
 ---
 apiVersion: apps/v1
 kind: Deployment
