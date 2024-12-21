@@ -508,7 +508,7 @@ func (c *UserController) generateUserCert(ctx context.Context, user User) error 
 	if err := os.WriteFile(keyPath, keyPEM, 0600); err != nil {
 		return fmt.Errorf("failed to save private key: %w", err)
 	}
-	if err := os.WriteFile(certPath, keyPEM, 0600); err != nil {
+	if err := os.WriteFile(certPath, cert, 0600); err != nil {
 		return fmt.Errorf("failed to save certificate: %w", err)
 	}
 
