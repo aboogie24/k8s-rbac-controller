@@ -140,7 +140,7 @@ func main() {
 		Scheme:     mgr.GetScheme(),
 		certClient: certClient,
 		repoPath:   repoPath,
-		usersState  usersState,
+		usersState: usersState,
 		certDir:    certDir,
 		repoURL:    repoURL,
 	}
