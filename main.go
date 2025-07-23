@@ -6,14 +6,18 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"crypto/tls"
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
 	"os"
 	"path/filepath"
 	"time"
+	"net/http"
 
 	"github.com/go-git/go-git/v5"
+	clientT "github.com/go-git/go-git/v5/plumbing/transport/client"
+	githttp "github.com/go-git/go-git/v5/plumbing/transport/http"
 	"gopkg.in/yaml.v2"
 	certificatesv1 "k8s.io/api/certificates/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -104,6 +108,16 @@ func main() {
 	fmt.Printf("RepoPath: %v", repoPath)
 	fmt.Printf("RepoURL: %v", repoURL)
 	if _, err := os.Stat(repoPath); os.IsNotExist(err) {
+		// Create custom HTTP client that skips TLS verification
+		customClient := &http.Client{
+		  	Transport: &http.Transport{
+				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+			},
+		}
+		// Install the custom Client for HTTP(s) URLs
+		clientT.InstallProtocol("https", githttp.NewClient(customClient))
+		clientT.InstallProtocol("http", githttp.NewClient(customClient))
+		
 		g, err := git.PlainClone(repoPath, false, &git.CloneOptions{
 			URL: repoURL,
 		})
