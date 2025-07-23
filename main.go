@@ -115,8 +115,8 @@ func main() {
 			},
 		}
 		// Install the custom Client for HTTP(s) URLs
-		client.InstallProtocol("https", githttp.NewClient(customClient))
-		client.InstallProtocol("http", githttp.NewClient(customClient))
+		clientT.InstallProtocol("https", githttp.NewClient(customClient))
+		clientT.InstallProtocol("http", githttp.NewClient(customClient))
 		
 		g, err := git.PlainClone(repoPath, false, &git.CloneOptions{
 			URL: repoURL,
