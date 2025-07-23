@@ -16,7 +16,7 @@ import (
 	"net/http"
 
 	"github.com/go-git/go-git/v5"
-	"github.com/go-git/go-git/v5/plumbing/transport/client"
+	clientT"github.com/go-git/go-git/v5/plumbing/transport/client"
 	githttp "github.com/go-git/go-git/v5/plumbing/transport/http"
 	"gopkg.in/yaml.v2"
 	certificatesv1 "k8s.io/api/certificates/v1"
