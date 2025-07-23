@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+	"net/http"
 
 	"github.com/go-git/go-git/v5"
 	"gopkg.in/yaml.v2"
@@ -104,6 +105,16 @@ func main() {
 	fmt.Printf("RepoPath: %v", repoPath)
 	fmt.Printf("RepoURL: %v", repoURL)
 	if _, err := os.Stat(repoPath); os.IsNotExist(err) {
+		// Create custom HTTP client that skips TLS verification
+		customClient := &http.Client{
+		  	Transport: &http.Transport{
+				TLSClientConfig: &tls.Config{InsecureSkipVerify: true}
+			},
+		}
+		// Install the custom Client for HTTP(s) URLs
+		client.InstallProtocol("https", githttp.NewClient(customClient))
+		client.InstallProtocol("http", githttp.NewClient(customClient))
+		
 		g, err := git.PlainClone(repoPath, false, &git.CloneOptions{
 			URL: repoURL,
 		})
