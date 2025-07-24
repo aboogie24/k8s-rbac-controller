@@ -474,11 +474,10 @@ func (c *UserController) generateUserCert(ctx context.Context, user User) error 
 		LastTransitionTime: metav1.Now(),
 		LastUpdateTime:     metav1.Now(),
 	}
-
 	log.Info("ApprovalCondtion Created")
 	csr.Status.Conditions = []certificatesv1.CertificateSigningRequestCondition{approvalCondition}
 
-	conditionsJSON, err := json.Marshal(latestCSR.Status.Conditions)
+	conditionsJSON, err := json.Marshal(csr.Status.Conditions)
 	if err != nil {
 		log.Error(err, "failed to marshel conditions for logging")
 	} else {
