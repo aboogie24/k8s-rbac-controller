@@ -388,6 +388,10 @@ func (c *UserController) generateUserCert(ctx context.Context, user User) error 
 
 	// Create user private key
 	privatekey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		log.Error(err, "Failed generating privatekey")
+		return err
+	}
 	log.Info("Creating CSR template")
 	// Create CSR template
 	template := &x509.CertificateRequest{
@@ -431,6 +435,7 @@ func (c *UserController) generateUserCert(ctx context.Context, user User) error 
 
 	log.Info("Creating CSR", "name", csr.Name, "user", user.Username)
 	if err := c.Client.Create(ctx, csr); err != nil {
+		log.Error(err, "failed to create CSR")
 		return fmt.Errorf("failed to create CSR: %w", err)
 	}
 	// Wait for CSR to be ready
