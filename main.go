@@ -535,7 +535,7 @@ func (c *UserController) generateUserCert(ctx context.Context, user User) error 
 
 	// Create kubeconfig and store in secrets
 	if err := c.generateKubeConfig(ctx, user.Username, certPath, keyPath); err != nil {
-		return fmt.Errorf("failed to generate Kube config")
+		return fmt.Errorf("failed to generate Kube config: %w", err)
 	}
 
 	log.Info("Successfully generated certificate",
