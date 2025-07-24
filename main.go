@@ -67,6 +67,7 @@ type UserController struct {
 	Scheme       *runtime.Scheme
 	repoURL      string
 	repoPath     string
+	usersState   string 
 	certDir      string
 	lastCommit   string
 	lastPullTime time.Time
@@ -87,6 +88,7 @@ func main() {
 	repoURL := os.Getenv("GIT_REPO_URL")
 	repoPath := os.Getenv("GIT_REPO_PATH")
 	certDir := os.Getenv("CERT_DIR")
+	usersState := os.Getenv("USER_STATE_LOCATION")
 
 	log.Info("RepoURL: %v  ...  RepoPath: %v", repoURL, repoPath)
 
@@ -138,6 +140,7 @@ func main() {
 		Scheme:     mgr.GetScheme(),
 		certClient: certClient,
 		repoPath:   repoPath,
+		usersState: usersState,
 		certDir:    certDir,
 		repoURL:    repoURL,
 	}
@@ -236,7 +239,7 @@ func (c *UserController) Reconcile(ctx context.Context, req reconcile.Request) (
 }
 
 func (c *UserController) loadState() (*UserState, error) {
-	statePath := filepath.Join(c.repoPath, "users-state.yaml")
+	statePath := filepath.Join(c.repoPath, c.usersState)
 	log := ctrl.Log.WithName("loadState")
 
 	log.Info("Attempting to load state file", "path", statePath)
@@ -248,7 +251,7 @@ func (c *UserController) loadState() (*UserState, error) {
 		return nil, fmt.Errorf("error checking state file at %s: %w", statePath, err)
 	}
 
-	data, err := os.ReadFile(fmt.Sprintf("%s/users-state.yaml", c.repoPath))
+	data, err := os.ReadFile(fmt.Sprintf("%s/%s", c.repoPath, c.usersState))
 	if err != nil {
 		return nil, fmt.Errorf("failed to read state file: %s %w", statePath, err)
 	}
@@ -385,6 +388,10 @@ func (c *UserController) generateUserCert(ctx context.Context, user User) error 
 
 	// Create user private key
 	privatekey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		log.Error(err, "Failed generating privatekey")
+		return err
+	}
 	log.Info("Creating CSR template")
 	// Create CSR template
 	template := &x509.CertificateRequest{
@@ -428,6 +435,7 @@ func (c *UserController) generateUserCert(ctx context.Context, user User) error 
 
 	log.Info("Creating CSR", "name", csr.Name, "user", user.Username)
 	if err := c.Client.Create(ctx, csr); err != nil {
+		log.Error(err, "failed to create CSR")
 		return fmt.Errorf("failed to create CSR: %w", err)
 	}
 	// Wait for CSR to be ready
@@ -466,11 +474,10 @@ func (c *UserController) generateUserCert(ctx context.Context, user User) error 
 		LastTransitionTime: metav1.Now(),
 		LastUpdateTime:     metav1.Now(),
 	}
-
 	log.Info("ApprovalCondtion Created")
 	csr.Status.Conditions = []certificatesv1.CertificateSigningRequestCondition{approvalCondition}
 
-	conditionsJSON, err := json.Marshal(latestCSR.Status.Conditions)
+	conditionsJSON, err := json.Marshal(csr.Status.Conditions)
 	if err != nil {
 		log.Error(err, "failed to marshel conditions for logging")
 	} else {
@@ -528,7 +535,7 @@ func (c *UserController) generateUserCert(ctx context.Context, user User) error 
 
 	// Create kubeconfig and store in secrets
 	if err := c.generateKubeConfig(ctx, user.Username, certPath, keyPath); err != nil {
-		return fmt.Errorf("failed to generate Kube config")
+		return fmt.Errorf("failed to generate Kube config: %w", err)
 	}
 
 	log.Info("Successfully generated certificate",
